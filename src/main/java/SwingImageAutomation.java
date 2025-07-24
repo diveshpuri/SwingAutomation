@@ -48,10 +48,25 @@ public class SwingImageAutomation {
     }
     
     /**
+     * Find an image template within a provided screenshot
+     * Returns the center point of the found image, or null if not found
+     */
+    public Point findImageLocation(BufferedImage screenshot, BufferedImage template) {
+        Point location = findImageInImage(screenshot, template);
+        if (location != null) {
+            return new Point(
+                location.x + template.getWidth() / 2,
+                location.y + template.getHeight() / 2
+            );
+        }
+        return null;
+    }
+    
+    /**
      * Simple template matching algorithm
      * Returns top-left corner of best match, or null if no good match found
      */
-    private Point findImageInImage(BufferedImage source, BufferedImage template) {
+    public Point findImageInImage(BufferedImage source, BufferedImage template) {
         int sourceWidth = source.getWidth();
         int sourceHeight = source.getHeight();
         int templateWidth = template.getWidth();
@@ -110,6 +125,30 @@ public class SwingImageAutomation {
             return true;
         }
         return false;
+    }
+    
+    /**
+     * Click at specific coordinates
+     */
+    public void clickAt(int x, int y) {
+        robot.mouseMove(x, y);
+        robot.mousePress(InputEvent.BUTTON1_DOWN_MASK);
+        robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+    }
+    
+    /**
+     * Press a key
+     */
+    public void pressKey(int keyCode) {
+        robot.keyPress(keyCode);
+        robot.keyRelease(keyCode);
+    }
+    
+    /**
+     * Get the Robot instance for advanced operations
+     */
+    public Robot getRobot() {
+        return robot;
     }
     
     /**

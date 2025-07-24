@@ -341,7 +341,7 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
         return appName.replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase();
     }
     
-    private void captureScreenshotWithHighlight(String actionType, Point location) {
+    public void captureScreenshotWithHighlight(String actionType, Point location) {
         if (showActionHighlight && location != null) {
             showActionHighlight(location);
             Timer highlightTimer = new Timer(200, e -> {

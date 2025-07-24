@@ -1,0 +1,44 @@
+# LLM Configuration Example
+# Copy this file to llm.properties and configure your preferred LLM provider
+
+# Provider: OPENAI, AZURE_OPENAI, ANTHROPIC, GOOGLE_AI, LOCAL_OLLAMA, CUSTOM
+llm.provider=OPENAI
+
+# OpenAI Configuration
+llm.api.url=https://api.openai.com/v1/chat/completions
+llm.api.key=your_openai_api_key_here
+llm.model=gpt-3.5-turbo
+llm.organization.id=your_org_id_here
+
+# Azure OpenAI Configuration (uncomment and configure if using Azure)
+#llm.provider=AZURE_OPENAI
+#llm.api.url=https://your-resource.openai.azure.com
+#llm.api.key=your_azure_api_key_here
+#llm.deployment.id=your_deployment_name
+
+# Anthropic Configuration (uncomment and configure if using Claude)
+#llm.provider=ANTHROPIC
+#llm.api.url=https://api.anthropic.com/v1/messages
+#llm.api.key=your_anthropic_api_key_here
+#llm.model=claude-3-sonnet-20240229
+
+# Google AI Configuration (uncomment and configure if using Gemini)
+#llm.provider=GOOGLE_AI
+#llm.api.url=https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
+#llm.api.key=your_google_ai_api_key_here
+#llm.model=gemini-pro
+
+# Local Ollama Configuration (uncomment and configure if using local Ollama)
+#llm.provider=LOCAL_OLLAMA
+#llm.api.url=http://localhost:11434
+#llm.model=llama2
+
+# Custom API Configuration (uncomment and configure for custom endpoints)
+#llm.provider=CUSTOM
+#llm.api.url=https://your-custom-api.com/v1/chat/completions
+#llm.api.key=your_custom_api_key_here
+#llm.model=your_custom_model
+
+# General Settings
+llm.max.tokens=1000
+llm.temperature=0.7
