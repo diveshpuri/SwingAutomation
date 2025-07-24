@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
+import javax.swing.*;
 import javax.swing.Timer;
 
 /**
@@ -25,6 +26,8 @@ public class GlobalScreenshotCapture {
     private String outputDirectory = "captured_images";
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss");
     private String targetAppName = "";
+    private boolean showActionHighlight = true;
+    private JWindow overlayWindow;
     
     public GlobalScreenshotCapture() throws AWTException {
         this.robot = new Robot();
@@ -162,6 +165,73 @@ public class GlobalScreenshotCapture {
         return appName.replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase();
     }
     
+    public void captureScreenshotWithHighlight(String prefix, Point location) {
+        if (showActionHighlight && location != null) {
+            showActionHighlight(location);
+            Timer highlightTimer = new Timer(200, e -> {
+                hideActionHighlight();
+                Timer captureTimer = new Timer(100, evt -> captureScreenshot(prefix));
+                captureTimer.setRepeats(false);
+                captureTimer.start();
+            });
+            highlightTimer.setRepeats(false);
+            highlightTimer.start();
+        } else {
+            captureScreenshot(prefix);
+        }
+    }
+    
+    private void showActionHighlight(Point location) {
+        if (overlayWindow != null) {
+            hideActionHighlight();
+        }
+        
+        overlayWindow = new JWindow();
+        overlayWindow.setAlwaysOnTop(true);
+        overlayWindow.setBackground(new Color(0, 0, 0, 0));
+        
+        JPanel panel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                g2d.setColor(new Color(255, 0, 0, 100));
+                g2d.setStroke(new BasicStroke(3.0f));
+                
+                int boxSize = 40;
+                int x = boxSize / 2;
+                int y = boxSize / 2;
+                g2d.drawRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.fillRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.setColor(new Color(255, 0, 0, 200));
+                g2d.setStroke(new BasicStroke(2.0f));
+                g2d.drawRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.dispose();
+            }
+        };
+        
+        panel.setOpaque(false);
+        panel.setPreferredSize(new Dimension(40, 40));
+        
+        overlayWindow.add(panel);
+        overlayWindow.pack();
+        overlayWindow.setLocation(location.x - 20, location.y - 20);
+        overlayWindow.setVisible(true);
+    }
+    
+    private void hideActionHighlight() {
+        if (overlayWindow != null) {
+            overlayWindow.setVisible(false);
+            overlayWindow.dispose();
+            overlayWindow = null;
+        }
+    }
+    
     public void captureWithDelay(String prefix, int delayMs) {
         System.out.println("Capturing screenshot in " + (delayMs/1000) + " seconds...");
         
@@ -187,7 +257,8 @@ public class GlobalScreenshotCapture {
             System.out.println("1. Run with argument 'capture' to take immediate screenshot");
             System.out.println("2. Run with argument 'delayed' to take screenshot after 3 seconds");
             System.out.println("3. Run with argument 'app:<appname>' to bind to specific application");
-            System.out.println("4. Run without arguments to start monitoring mode");
+            System.out.println("4. Run with argument 'highlight:x,y' to capture with red box at coordinates");
+            System.out.println("5. Run without arguments to start monitoring mode");
             
             if (args.length > 0) {
                 String arg = args[0].toLowerCase();
@@ -195,6 +266,22 @@ public class GlobalScreenshotCapture {
                     capture.targetAppName = args[0].substring(4);
                     System.out.println("Binding to application: " + capture.targetAppName);
                     capture.startCapturing();
+                } else if (arg.startsWith("highlight:")) {
+                    String coords = args[0].substring(10);
+                    String[] parts = coords.split(",");
+                    if (parts.length == 2) {
+                        try {
+                            int x = Integer.parseInt(parts[0].trim());
+                            int y = Integer.parseInt(parts[1].trim());
+                            Point location = new Point(x, y);
+                            System.out.println("Capturing with highlight at: " + x + "," + y);
+                            capture.captureScreenshotWithHighlight("manual_highlight", location);
+                        } catch (NumberFormatException e) {
+                            System.out.println("Invalid coordinates format. Use: highlight:x,y");
+                        }
+                    } else {
+                        System.out.println("Invalid coordinates format. Use: highlight:x,y");
+                    }
                 } else {
                     switch (arg) {
                         case "capture":

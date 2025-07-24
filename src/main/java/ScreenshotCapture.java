@@ -32,6 +32,9 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
     private JCheckBox bindToAppCheckbox;
     private JTextField appNameField;
     private String targetAppName = "";
+    private JCheckBox highlightActionBox;
+    private boolean showActionHighlight = true;
+    private JWindow overlayWindow;
     
     public ScreenshotCapture() throws AWTException {
         this.robot = new Robot();
@@ -89,11 +92,16 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
         controlPanel.add(appNameField, gbc);
         
         gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 3; gbc.fill = GridBagConstraints.HORIZONTAL;
+        highlightActionBox = new JCheckBox("Highlight action location with red box", true);
+        highlightActionBox.setToolTipText("Shows red transparent box at click/action location in screenshots");
+        controlPanel.add(highlightActionBox, gbc);
+        
+        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 3; gbc.fill = GridBagConstraints.HORIZONTAL;
         startStopButton = new JButton("Start Capturing");
         startStopButton.addActionListener(e -> toggleCapturing());
         controlPanel.add(startStopButton, gbc);
         
-        gbc.gridy = 7;
+        gbc.gridy = 8;
         statusLabel = new JLabel("Ready to capture screenshots");
         statusLabel.setForeground(Color.BLUE);
         controlPanel.add(statusLabel, gbc);
@@ -117,6 +125,10 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
             }
         });
         
+        highlightActionBox.addActionListener(e -> {
+            showActionHighlight = highlightActionBox.isSelected();
+        });
+        
         add(controlPanel, BorderLayout.CENTER);
         
         JTextArea instructions = new JTextArea(
@@ -133,10 +145,14 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
             "- Enter partial window title (e.g., 'Calculator', 'Notepad')\n" +
             "- Screenshots only captured when target app is active\n" +
             "- Images prefixed with application name for organization\n\n" +
+            "Action Highlighting:\n" +
+            "- Red transparent box shows exact click/action location\n" +
+            "- Helps automation framework identify action coordinates\n" +
+            "- Can be disabled if not needed for your workflow\n\n" +
             "Tips:\n" +
             "- Captured images will be named with timestamp and action type\n" +
             "- Use these images as templates in your automation scripts\n" +
-            "- Crop images to focus on specific UI elements after capture"
+            "- Red highlights show precise action locations for automation"
         );
         instructions.setEditable(false);
         instructions.setBackground(getBackground());
@@ -215,8 +231,9 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
                 if (isCapturing && event instanceof MouseEvent) {
                     MouseEvent mouseEvent = (MouseEvent) event;
                     if (mouseEvent.getID() == MouseEvent.MOUSE_CLICKED && captureOnClickBox.isSelected()) {
+                        Point clickLocation = new Point(mouseEvent.getXOnScreen(), mouseEvent.getYOnScreen());
                         Timer timer = new Timer((Integer) delaySpinner.getValue(), e -> {
-                            captureScreenshot("click_" + mouseEvent.getX() + "_" + mouseEvent.getY());
+                            captureScreenshotWithHighlight("click_" + mouseEvent.getX() + "_" + mouseEvent.getY(), clickLocation);
                         });
                         timer.setRepeats(false);
                         timer.start();
@@ -324,10 +341,78 @@ public class ScreenshotCapture extends JFrame implements MouseListener, KeyListe
         return appName.replaceAll("[^a-zA-Z0-9_-]", "_").toLowerCase();
     }
     
+    private void captureScreenshotWithHighlight(String actionType, Point location) {
+        if (showActionHighlight && location != null) {
+            showActionHighlight(location);
+            Timer highlightTimer = new Timer(200, e -> {
+                hideActionHighlight();
+                Timer captureTimer = new Timer(100, evt -> captureScreenshot(actionType));
+                captureTimer.setRepeats(false);
+                captureTimer.start();
+            });
+            highlightTimer.setRepeats(false);
+            highlightTimer.start();
+        } else {
+            captureScreenshot(actionType);
+        }
+    }
+    
+    private void showActionHighlight(Point location) {
+        if (overlayWindow != null) {
+            hideActionHighlight();
+        }
+        
+        overlayWindow = new JWindow();
+        overlayWindow.setAlwaysOnTop(true);
+        overlayWindow.setBackground(new Color(0, 0, 0, 0));
+        
+        JPanel panel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                g2d.setColor(new Color(255, 0, 0, 100));
+                g2d.setStroke(new BasicStroke(3.0f));
+                
+                int boxSize = 40;
+                int x = boxSize / 2;
+                int y = boxSize / 2;
+                g2d.drawRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.fillRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.setColor(new Color(255, 0, 0, 200));
+                g2d.setStroke(new BasicStroke(2.0f));
+                g2d.drawRect(x - boxSize/2, y - boxSize/2, boxSize, boxSize);
+                
+                g2d.dispose();
+            }
+        };
+        
+        panel.setOpaque(false);
+        panel.setPreferredSize(new Dimension(40, 40));
+        
+        overlayWindow.add(panel);
+        overlayWindow.pack();
+        overlayWindow.setLocation(location.x - 20, location.y - 20);
+        overlayWindow.setVisible(true);
+    }
+    
+    private void hideActionHighlight() {
+        if (overlayWindow != null) {
+            overlayWindow.setVisible(false);
+            overlayWindow.dispose();
+            overlayWindow = null;
+        }
+    }
+    
     @Override
     public void mouseClicked(MouseEvent e) {
         if (isCapturing && captureOnClickBox.isSelected()) {
-            captureScreenshot("click");
+            Point clickLocation = new Point(e.getXOnScreen(), e.getYOnScreen());
+            captureScreenshotWithHighlight("click", clickLocation);
         }
     }
     
