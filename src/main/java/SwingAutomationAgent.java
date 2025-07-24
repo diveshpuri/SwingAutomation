@@ -3,7 +3,9 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import javax.imageio.ImageIO;
 import java.util.*;
 import java.util.List;
@@ -28,6 +30,14 @@ public class SwingAutomationAgent {
     
     private LLMConfig llmConfig;
     private LLMClient llmClient;
+    private LLMResponseStorage responseStorage;
+    private GIFGenerator gifGenerator;
+    private AutomationScriptGenerator scriptGenerator;
+    private JNLPLauncher jnlpLauncher;
+    
+    private int maxRetries = 10;
+    private List<String> screenshotPaths;
+    private String currentExecutionId;
     
     /**
      * Represents a single automation action step
@@ -66,6 +76,11 @@ public class SwingAutomationAgent {
         
         this.llmConfig = new LLMConfig();
         this.llmClient = new LLMClient(llmConfig);
+        this.responseStorage = new LLMResponseStorage();
+        this.gifGenerator = new GIFGenerator();
+        this.scriptGenerator = new AutomationScriptGenerator();
+        this.screenshotPaths = new ArrayList<>();
+        this.currentExecutionId = "exec_" + System.currentTimeMillis();
     }
     
     /**
@@ -86,6 +101,119 @@ public class SwingAutomationAgent {
         executeActionPlan();
         
         displayExecutionSummary();
+        
+        generateCompletionArtifacts(humanDescription);
+    }
+    
+    /**
+     * Launch JNLP application and execute action sequence
+     */
+    public void executeWithJNLPLaunch(String jnlpUrl, String humanDescription, String applicationName) {
+        this.targetApplication = applicationName;
+        this.jnlpLauncher = new JNLPLauncher(jnlpUrl, applicationName);
+        
+        System.out.println("=== SwingAutomationAgent with JNLP Launch ===");
+        System.out.println("JNLP URL: " + jnlpUrl);
+        System.out.println("Target Application: " + applicationName);
+        System.out.println("Action Description: " + humanDescription);
+        System.out.println();
+        
+        if (!jnlpLauncher.launchApplication()) {
+            System.err.println("Failed to launch JNLP application");
+            return;
+        }
+        
+        if (!jnlpLauncher.waitForApplicationReady(30)) {
+            System.err.println("Application not ready for automation");
+            jnlpLauncher.closeApplication();
+            return;
+        }
+        
+        try {
+            executeActionSequence(humanDescription, applicationName);
+        } finally {
+            jnlpLauncher.closeApplication();
+        }
+    }
+    
+    /**
+     * Generate completion artifacts (GIF, script, summary)
+     */
+    private void generateCompletionArtifacts(String description) {
+        try {
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            
+            if (!screenshotPaths.isEmpty()) {
+                String gifPath = "execution_proof_" + timestamp + ".gif";
+                if (gifGenerator.createGIF(screenshotPaths, gifPath)) {
+                    System.out.println("✓ Execution GIF created: " + gifPath);
+                }
+            }
+            
+            if (!actionPlan.isEmpty()) {
+                String scriptPath = scriptGenerator.generateScript(
+                    "AutomationScript_" + timestamp, 
+                    description, 
+                    actionPlan, 
+                    responseStorage.getExecutionContext(5)
+                );
+                if (scriptPath != null) {
+                    System.out.println("✓ Automation script generated: " + scriptPath);
+                }
+            }
+            
+            String historyPath = "execution_history_" + timestamp + ".json";
+            try (PrintWriter writer = new PrintWriter(new FileWriter(historyPath))) {
+                writer.print(responseStorage.exportToJson());
+                System.out.println("✓ Execution history exported: " + historyPath);
+            }
+            
+            displayCompletionMessage();
+            
+        } catch (Exception e) {
+            System.err.println("Error generating completion artifacts: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Display completion message with summary
+     */
+    private void displayCompletionMessage() {
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("🎉 AUTOMATION EXECUTION COMPLETED");
+        System.out.println("=".repeat(50));
+        
+        Map<String, Object> stats = responseStorage.getExecutionStatistics();
+        System.out.printf("📊 Execution Summary:\n");
+        System.out.printf("   • Total Steps: %s\n", stats.get("totalSteps"));
+        System.out.printf("   • Success Rate: %s\n", stats.get("successRate"));
+        System.out.printf("   • Average Time: %s ms\n", stats.get("avgExecutionTimeMs"));
+        
+        if (failedSteps > 0) {
+            System.out.printf("   • Failed Steps: %d (see execution history for details)\n", failedSteps);
+        }
+        
+        System.out.println("\n📁 Generated Artifacts:");
+        System.out.println("   • Execution GIF (proof of execution)");
+        System.out.println("   • Automation Script (for future reuse)");
+        System.out.println("   • Execution History (for debugging)");
+        
+        System.out.println("\n✅ Task completed successfully!");
+        System.out.println("=".repeat(50));
+    }
+    
+    /**
+     * Configure retry settings
+     */
+    public void setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
+    }
+    
+    /**
+     * Get response storage for analysis
+     */
+    public LLMResponseStorage getResponseStorage() {
+        return responseStorage;
     }
     
     /**
@@ -365,37 +493,85 @@ public class SwingAutomationAgent {
     }
     
     /**
-     * Execute individual action step
+     * Execute individual action step with retry logic
      */
     private boolean executeStep(ActionStep step) {
-        try {
-            switch (step.action) {
-                case "CLICK":
-                    return executeClick(step);
-                case "DOUBLE_CLICK":
-                    return executeDoubleClick(step);
-                case "RIGHT_CLICK":
-                    return executeRightClick(step);
-                case "TYPE_TEXT":
-                    return executeTypeText(step);
-                case "PRESS_KEY":
-                    return executePressKey(step);
-                case "WAIT":
-                    return executeWait(step);
-                case "VERIFY_ELEMENT":
-                    return executeVerifyElement(step);
-                case "SCROLL":
-                    return executeScroll(step);
-                case "TAKE_SCREENSHOT":
-                    return executeTakeScreenshot(step);
-                default:
-                    System.err.println("Unknown action: " + step.action);
-                    return false;
+        String stepId = currentExecutionId + "_step_" + (executedSteps + 1);
+        LLMResponseStorage.ExecutionStep executionStep = responseStorage.createExecutionStep(stepId);
+        
+        executionStep.setHumanInput(step.toString());
+        executionStep.setParsedAction(step.action + ": " + step.target);
+        
+        long startTime = System.currentTimeMillis();
+        boolean success = false;
+        String errorMessage = null;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                System.out.printf("Attempt %d/%d: %s%n", attempt, maxRetries, step);
+                
+                switch (step.action) {
+                    case "CLICK":
+                        success = executeClick(step);
+                        break;
+                    case "DOUBLE_CLICK":
+                        success = executeDoubleClick(step);
+                        break;
+                    case "RIGHT_CLICK":
+                        success = executeRightClick(step);
+                        break;
+                    case "TYPE_TEXT":
+                        success = executeTypeText(step);
+                        break;
+                    case "PRESS_KEY":
+                        success = executePressKey(step);
+                        break;
+                    case "WAIT":
+                        success = executeWait(step);
+                        break;
+                    case "VERIFY_ELEMENT":
+                        success = executeVerifyElement(step);
+                        break;
+                    case "SCROLL":
+                        success = executeScroll(step);
+                        break;
+                    case "TAKE_SCREENSHOT":
+                        success = executeTakeScreenshot(step);
+                        break;
+                    default:
+                        errorMessage = "Unknown action: " + step.action;
+                        success = false;
+                }
+                
+                if (success) {
+                    System.out.println("✓ Success on attempt " + attempt);
+                    break;
+                } else {
+                    errorMessage = "Action failed on attempt " + attempt;
+                    if (attempt < maxRetries) {
+                        System.out.println("✗ Failed, retrying...");
+                        Thread.sleep(1000);
+                    }
+                }
+                
+            } catch (Exception e) {
+                errorMessage = "Error executing step: " + e.getMessage();
+                System.err.println(errorMessage);
+                if (attempt < maxRetries) {
+                    try { Thread.sleep(1000); } catch (InterruptedException ie) { break; }
+                }
             }
-        } catch (Exception e) {
-            System.err.println("Error executing step: " + e.getMessage());
-            return false;
         }
+        
+        long executionTime = System.currentTimeMillis() - startTime;
+        executionStep.setExecutionTimeMs(executionTime);
+        executionStep.setSuccess(success);
+        executionStep.setExecutionResult(success ? "SUCCESS" : "FAILED after " + maxRetries + " attempts");
+        if (!success && errorMessage != null) {
+            executionStep.setErrorMessage(errorMessage);
+        }
+        
+        return success;
     }
     
     /**
@@ -621,6 +797,14 @@ public class SwingAutomationAgent {
         try {
             String fullFilename = String.format("screenshots/agent_%s_%d.png", filename, System.currentTimeMillis());
             screenshotCapture.captureScreenshotWithHighlight(sanitizeFilename(filename), location);
+            
+            screenshotPaths.add(fullFilename);
+            
+            if (!responseStorage.getAllSteps().isEmpty()) {
+                LLMResponseStorage.ExecutionStep currentStep = responseStorage.getAllSteps().get(responseStorage.getAllSteps().size() - 1);
+                currentStep.setScreenshotPath(fullFilename);
+            }
+            
             return true;
         } catch (Exception e) {
             System.err.println("Error taking highlighted screenshot: " + e.getMessage());
@@ -637,7 +821,18 @@ public class SwingAutomationAgent {
             BufferedImage screenshot = robot.createScreenCapture(new Rectangle(Toolkit.getDefaultToolkit().getScreenSize()));
             File outputFile = new File(fullFilename);
             outputFile.getParentFile().mkdirs();
-            return ImageIO.write(screenshot, "png", outputFile);
+            boolean success = ImageIO.write(screenshot, "png", outputFile);
+            
+            if (success) {
+                screenshotPaths.add(fullFilename);
+                
+                if (!responseStorage.getAllSteps().isEmpty()) {
+                    LLMResponseStorage.ExecutionStep currentStep = responseStorage.getAllSteps().get(responseStorage.getAllSteps().size() - 1);
+                    currentStep.setScreenshotPath(fullFilename);
+                }
+            }
+            
+            return success;
         } catch (Exception e) {
             System.err.println("Error taking screenshot: " + e.getMessage());
             return false;

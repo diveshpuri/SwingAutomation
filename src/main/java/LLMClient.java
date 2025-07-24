@@ -77,33 +77,69 @@ public class LLMClient {
     
     private String buildScreenshotAnalysisPrompt(String screenshotPath, String userIntent) {
         return String.format(
-            "Analyze this screenshot and provide specific UI automation actions to achieve: %s\n\n" +
+            "You are an intelligent automation agent for Java Swing applications. Your role is to analyze screenshots and provide precise, deterministic automation actions.\n\n" +
+            "CONTEXT:\n" +
+            "- You are working with a Java Swing desktop application\n" +
+            "- Actions will be executed using image recognition and Robot class\n" +
+            "- Each action must be specific and executable\n" +
+            "- You have access to click, type, keyboard shortcuts, and verification actions\n\n" +
+            "TASK: Analyze this screenshot and provide specific UI automation actions to achieve: %s\n\n" +
             "Screenshot: %s\n\n" +
-            "Provide a step-by-step action plan with specific element descriptions that can be used for image recognition. " +
-            "Format each action as: ACTION_TYPE: element_description\n" +
-            "Available actions: CLICK, TYPE_TEXT, PRESS_KEY, WAIT, VERIFY, TAKE_SCREENSHOT\n\n" +
-            "Example format:\n" +
+            "REQUIREMENTS:\n" +
+            "1. Provide a step-by-step action plan with specific element descriptions\n" +
+            "2. Use element descriptions that can be matched via image recognition\n" +
+            "3. Include verification steps to ensure actions succeeded\n" +
+            "4. Add appropriate wait times for UI responses\n" +
+            "5. End with a screenshot to capture final state\n\n" +
+            "FORMAT: Each action as: ACTION_TYPE: element_description\n" +
+            "Available actions: CLICK, DOUBLE_CLICK, RIGHT_CLICK, TYPE_TEXT, PRESS_KEY, WAIT, VERIFY_ELEMENT, TAKE_SCREENSHOT, SCROLL\n\n" +
+            "EXAMPLES:\n" +
             "CLICK: login button\n" +
             "TYPE_TEXT: username field -> john.doe@example.com\n" +
-            "PRESS_KEY: Enter\n",
+            "PRESS_KEY: Enter\n" +
+            "WAIT: 2\n" +
+            "VERIFY_ELEMENT: dashboard header\n" +
+            "TAKE_SCREENSHOT: final_state\n\n" +
+            "Provide only the structured actions, one per line:",
             userIntent, screenshotPath
         );
     }
     
     private String buildActionParsingPrompt(String description) {
         return String.format(
-            "Parse this natural language description into structured automation actions:\n\n" +
+            "You are an intelligent automation agent for Java Swing applications. Your role is to parse human action descriptions into structured, executable automation steps.\n\n" +
+            "CONTEXT:\n" +
+            "- You are working with a Java Swing desktop application\n" +
+            "- Actions will be executed deterministically using image recognition\n" +
+            "- Each action must be precise and unambiguous\n" +
+            "- You must ensure proper sequencing and timing\n\n" +
+            "TASK: Parse this natural language description into structured automation actions:\n\n" +
             "\"%s\"\n\n" +
-            "Convert to structured format:\n" +
-            "ACTION_TYPE: element_description [-> input_text]\n\n" +
+            "REQUIREMENTS:\n" +
+            "1. Convert to structured format: ACTION_TYPE: element_description [-> input_text]\n" +
+            "2. Add appropriate wait times between actions\n" +
+            "3. Include verification steps for critical actions\n" +
+            "4. End with a screenshot for proof of completion\n" +
+            "5. Use specific element descriptions for image recognition\n\n" +
             "Available actions:\n" +
             "- CLICK: element_name\n" +
+            "- DOUBLE_CLICK: element_name\n" +
+            "- RIGHT_CLICK: element_name\n" +
             "- TYPE_TEXT: field_name -> text_to_type\n" +
-            "- PRESS_KEY: key_name\n" +
+            "- PRESS_KEY: key_name (Enter, Escape, Tab, F1-F12, Ctrl+C, etc.)\n" +
             "- WAIT: duration_in_seconds\n" +
-            "- VERIFY: element_to_verify\n" +
-            "- TAKE_SCREENSHOT\n\n" +
-            "Provide only the structured actions, one per line.",
+            "- VERIFY_ELEMENT: element_to_verify\n" +
+            "- TAKE_SCREENSHOT: description\n" +
+            "- SCROLL: up/down\n\n" +
+            "EXAMPLES:\n" +
+            "CLICK: File menu\n" +
+            "WAIT: 1\n" +
+            "CLICK: Open option\n" +
+            "TYPE_TEXT: filename field -> document.txt\n" +
+            "PRESS_KEY: Enter\n" +
+            "VERIFY_ELEMENT: document content area\n" +
+            "TAKE_SCREENSHOT: file_opened\n\n" +
+            "Provide only the structured actions, one per line:",
             description
         );
     }
