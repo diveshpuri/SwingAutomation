@@ -32,11 +32,13 @@
         </dependency>
 
         <!-- OpenCV for computer vision and image processing -->
-        <dependency>
+        <!-- Note: OpenCV Java bindings can be complex to manage via Maven -->
+        <!-- Users can manually add OpenCV JAR to classpath if needed -->
+        <!-- <dependency>
             <groupId>org.openpnp</groupId>
             <artifactId>opencv</artifactId>
             <version>${opencv.version}</version>
-        </dependency>
+        </dependency> -->
 
         <!-- Apache Commons IO for file operations -->
         <dependency>

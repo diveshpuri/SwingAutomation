@@ -9,27 +9,26 @@ mkdir -p build
 
 echo "Created directories: images/, lib/, build/"
 
-echo "Compiling SwingImageAutomation.java..."
-javac -d build SwingImageAutomation.java
+echo "Compiling with Maven..."
+mvn clean compile
 
 if [ $? -eq 0 ]; then
-    echo "✓ SwingImageAutomation compiled successfully"
+    echo "✓ Project compiled successfully with Maven"
 else
-    echo "✗ Failed to compile SwingImageAutomation"
+    echo "✗ Failed to compile with Maven"
     exit 1
 fi
 
 echo ""
-echo "Note: To compile SikuliExample.java, you need to:"
-echo "1. Download Sikuli JAR from https://raiman.github.io/SikuliX1/"
-echo "2. Place it in the lib/ directory"
-echo "3. Run: javac -cp lib/sikulixapi-2.0.5.jar -d build SikuliExample.java"
+echo "Note: Sikuli dependencies are now managed by Maven automatically"
+echo "All dependencies will be downloaded from Maven repositories"
 
 echo ""
 echo "Build completed! Next steps:"
-echo "1. Add screenshot images to the images/ directory"
+echo "1. Add screenshot images to the src/main/resources/images/ directory"
 echo "2. Modify the automation scripts for your specific application"
-echo "3. Run: java -cp build SwingImageAutomation"
+echo "3. Run: mvn exec:java -Dexec.mainClass=SwingImageAutomation"
+echo "   Or: java -cp target/classes SwingImageAutomation"
 
 echo ""
-echo "Framework is ready for use!"
+echo "Framework is ready for use with Maven!"

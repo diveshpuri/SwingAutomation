@@ -1,4 +1,5 @@
 import org.sikuli.script.*;
+import java.util.Iterator;
 
 /**
  * Example using Sikuli library for Java Swing automation
@@ -30,7 +31,7 @@ public class SikuliExample {
             screen.click("images/file_menu.png");
             screen.click("images/open_option.png");
             
-            if (screen.exists("images/file_dialog.png")) {
+            if (screen.exists("images/file_dialog.png") != null) {
                 screen.type("images/filename_field.png", "myfile.txt");
                 screen.click("images/open_button.png");
             }
@@ -38,9 +39,9 @@ public class SikuliExample {
             screen.click("images/text_area.png");
             screen.type("Hello, this is automated text input!");
             
-            screen.key(Key.CTRL + "s");
+            screen.type(Key.CTRL + "s");
             
-            if (screen.exists("images/save_dialog.png")) {
+            if (screen.exists("images/save_dialog.png") != null) {
                 screen.type("images/save_filename.png", "automated_output.txt");
                 screen.click("images/save_button.png");
             }
@@ -59,7 +60,7 @@ public class SikuliExample {
     public void advancedImageMatching() throws FindFailed {
         Pattern buttonPattern = new Pattern("images/submit_button.png").similar(0.7);
         
-        if (screen.exists(buttonPattern)) {
+        if (screen.exists(buttonPattern) != null) {
             screen.click(buttonPattern);
         }
         
